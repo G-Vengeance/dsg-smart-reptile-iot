@@ -1,0 +1,28 @@
+{
+  "files": {
+    "main.js": "/static/js/main.b8831f06.js",
+    "static/media/cardimgfree.jpg": "/static/media/cardimgfree.09e50a900f4239c813e8.jpg",
+    "static/media/ular2.jpeg": "/static/media/ular2.973a33f23c46f44a0b6d.jpeg",
+    "static/media/ular3.jpeg": "/static/media/ular3.0a69981553a0ef7196d3.jpeg",
+    "static/media/ular4.jpeg": "/static/media/ular4.c9dfb1ed62e49dddde25.jpeg",
+    "static/media/ular1.jpeg": "/static/media/ular1.ce60a496d930e73c6dce.jpeg",
+    "static/media/background-body-admin.png": "/static/media/background-body-admin.9a5703c114bec6efe39b.png",
+    "static/media/signUpImage.png": "/static/media/signUpImage.ce32c5768505cac270ef.png",
+    "static/media/signInImage.png": "/static/media/signInImage.54090d1d6f00462e1f4b.png",
+    "static/media/billing-background-card.png": "/static/media/billing-background-card.12071e802769d6f46e3e.png",
+    "static/media/avatar9.png": "/static/media/avatar9.2db98189f85998b61c6b.png",
+    "static/media/avatar7.png": "/static/media/avatar7.00e8f4f007f327b73e71.png",
+    "static/media/avatar10.png": "/static/media/avatar10.1683e1c0cac6f333de9d.png",
+    "static/media/bgProfile.png": "/static/media/bgProfile.d734b546dfd26a184fcb.png",
+    "static/media/avatar8.png": "/static/media/avatar8.9719f14554a45416b270.png",
+    "static/media/SidebarHelpImage.png": "/static/media/SidebarHelpImage.40ef5912be5ef8097186.png",
+    "static/media/ProjectImage3.png": "/static/media/ProjectImage3.612b1c42b661baf74aea.png",
+    "static/media/ProjectImage1.png": "/static/media/ProjectImage1.bed72a005437df70012f.png",
+    "static/media/ProjectImage2.png": "/static/media/ProjectImage2.e33d8e1649b42af9731b.png",
+    "index.html": "/index.html",
+    "main.b8831f06.js.map": "/static/js/main.b8831f06.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.b8831f06.js"
+  ]
+}
