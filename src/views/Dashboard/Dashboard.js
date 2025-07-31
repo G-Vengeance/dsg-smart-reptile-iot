@@ -38,7 +38,6 @@ import { ResponsiveContainer, Line, XAxis, YAxis, Tooltip } from 'recharts';
 
 // Icons
 import { BiHappy } from 'react-icons/bi';
-import { Analytics } from "@vercel/analytics/react"
 import axios from "axios";
 import { AiFillCheckCircle } from 'react-icons/ai';
 import { CartIcon, DocumentIcon, GlobeIcon, RocketIcon, StatsIcon, WalletIcon } from 'components/Icons/Icons.js';
