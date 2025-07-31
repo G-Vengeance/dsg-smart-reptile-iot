@@ -38,6 +38,7 @@ import { ResponsiveContainer, Line, XAxis, YAxis, Tooltip } from 'recharts';
 
 // Icons
 import { BiHappy } from 'react-icons/bi';
+import { Analytics } from "@vercel/analytics/react"
 import axios from "axios";
 import { AiFillCheckCircle } from 'react-icons/ai';
 import { CartIcon, DocumentIcon, GlobeIcon, RocketIcon, StatsIcon, WalletIcon } from 'components/Icons/Icons.js';
@@ -64,7 +65,7 @@ export default function Dashboard() {
 	const [chartTimestamps, setChartTimestamps] = useState([]);
 	// const API_TOKEN = "9hAHaw4XJSdpiHJr2cDT6_lEtj4-DjEC";
  	// const BASE_URL = "https://blynk.cloud/external/api";
-	const FLASK_API_BASE_URL = "https://dsg-tropidoleamus-deathg.herokuapp.com"; // Ganti dengan URL Heroku Anda yang sudah benar!
+	const FLASK_API_BASE_URL = "https://dsg-reptile-api-d0df3f9ecb50.herokuapp.com"; // Ganti dengan URL Heroku Anda yang sudah benar!
 	// Pastikan Anda sudah mengganti nama aplikasi Heroku Anda menjadi 'dsg-tropidoleamus-deathg'
 	const DEVICE_ID = "terarium_tropidolaemus_01"; // ID unik untuk perangkat NodeMCU Anda
 
