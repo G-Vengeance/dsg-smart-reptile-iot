@@ -64,7 +64,7 @@ export default function Dashboard() {
 	const [chartTimestamps, setChartTimestamps] = useState([]);
 	// const API_TOKEN = "9hAHaw4XJSdpiHJr2cDT6_lEtj4-DjEC";
  	// const BASE_URL = "https://blynk.cloud/external/api";
-	const FLASK_API_BASE_URL = "https://dsg-reptile-api-d0df3f9ecb50.herokuapp.com"; // Ganti dengan URL Heroku Anda yang sudah benar!
+	const FLASK_API_BASE_URL = "https://web-production-247d.up.railway.app"; // Ganti dengan URL Heroku Anda yang sudah benar!
 	// Pastikan Anda sudah mengganti nama aplikasi Heroku Anda menjadi 'dsg-tropidoleamus-deathg'
 	const DEVICE_ID = "terarium_tropidolaemus_01"; // ID unik untuk perangkat NodeMCU Anda
 
