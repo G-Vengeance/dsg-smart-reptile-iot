@@ -9,6 +9,11 @@ import CardBody from "components/Card/CardBody.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, zoomPlugin);
 
+// --- KONFIGURASI API FLASK ANDA ---
+// GANTI DENGAN URL PUBLIK RAILWAY ANDA YANG BENAR
+const FLASK_API_BASE_URL = "https://web-production-247d.up.railway.app"; // GANTI DENGAN URL RAILWAY ANDA YANG TEPAT!
+const DEVICE_ID = "terarium_tropidolaemus_01"; // Pastikan ini konsisten dengan NodeMCU dan Flask
+
 const Tables = () => {
   const [chartData, setChartData] = useState({
     labels: [],
@@ -32,13 +37,14 @@ const Tables = () => {
 
   const fetchData = async () => {
     try {
-      const response = await fetch("https://api.thingspeak.com/channels/2831347/feeds.json?results=1000");
-      const data = await response.json();
-      const feeds = data.feeds;
+      // GANTI DENGAN PANGGILAN KE API HISTORIS FLASK ANDA
+      const response = await fetch(`${FLASK_API_BASE_URL}/api/v1/historical_data/${DEVICE_ID}`);
+      const data = await response.json(); // Data ini seharusnya berupa array objek dari Flask
 
-      const labels = feeds.map((feed) => new Date(feed.created_at).toLocaleString());
-      const temperatureData = feeds.map((feed) => parseFloat(feed.field1) || 0);
-      const humidityData = feeds.map((feed) => parseFloat(feed.field2) || 0);
+      // Proses data dari respons Flask
+      const labels = data.map((feed) => new Date(feed.timestamp).toLocaleString());
+      const temperatureData = data.map((feed) => parseFloat(feed.temperature) || 0);
+      const humidityData = data.map((feed) => parseFloat(feed.humidity) || 0);
 
       setChartData({
         labels,
@@ -48,7 +54,7 @@ const Tables = () => {
         ],
       });
     } catch (error) {
-      console.error("Error fetching data from ThingSpeak:", error);
+      console.error("Error fetching data from Flask API:", error); // Ubah pesan error
     }
   };
 
@@ -58,6 +64,9 @@ const Tables = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // --- Fungsi Export XML dan CSV ---
+  // Fungsi export ini akan menggunakan data dari chartData state,
+  // yang sekarang akan terisi dari Flask API.
   const exportToXML = () => {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<data>`;
     chartData.labels.forEach((label, index) => {
@@ -135,7 +144,7 @@ const Tables = () => {
                       mode: "x",
                     },
                   },
-                }
+                },
               }} 
             />
           </Box>
