@@ -224,7 +224,7 @@ export default function ObservationGallery({ tempUnit, language = 'en' }: Observ
   const galleryItems: GalleryItem[] = [
     {
       id: 'gallery-basking',
-      title: language === 'en' ? 'Tropidolaemus wagleri - Betina Dewasa' : 'Tropidolaemus wagleri - Adult Female',
+      title: language === 'en' ? 'Tropidolaemus wagleri - Adult Female' : 'Tropidolaemus wagleri - Betina Dewasa',
       subtitle: language === 'en' ? 'Relaxing beautifully on branches' : 'Beristirahat santai di dahan tropis',
       imageUrls: [
         '/images/Tropidolaemus_wagleri.jpeg',
