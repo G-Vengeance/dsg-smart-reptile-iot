@@ -1,0 +1,6 @@
+{
+  "name": "Midas Terrarium Telemetry Platform",
+  "description": "Premium cyber-telemetry glassmorphic dashboard and command center for Midas, a Tropidolaemus subannulatus snake.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
