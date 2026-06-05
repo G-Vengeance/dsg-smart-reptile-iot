@@ -36,6 +36,7 @@ import ThermodynamicChart from './components/ThermodynamicChart';
 import SettingsPanel from './components/SettingsPanel';
 import ObservationGallery from './components/ObservationGallery';
 import HealthTimeline from './components/HealthTimeline';
+import CommentSection from './components/CommentSection';
 
 
 // Helpers to seed 60 elements for beautiful initial data science line charts
@@ -910,7 +911,7 @@ export default function App() {
                       language={language}
                     />
 
-                    {/* Col 3: AI Biometrics Modules */}
+                    {/* Col 3: Biometrics Modules */}
                     <BiometricsModule
                       biometrics={biometrics}
                       onFeedSnake={handleFeedSnake}
@@ -1011,6 +1012,11 @@ export default function App() {
                 {/* Heuristic Bio-Observation CCTV Gallery */}
                 <div className={mobileSubTab === 'gallery' ? 'block' : 'hidden md:block'}>
                   <ObservationGallery tempUnit={tempUnit} language={language} />
+                </div>
+
+                {/* Kolom Komentar Pengamatan (Comment Section) */}
+                <div className={mobileSubTab === 'gallery' ? 'block' : 'hidden md:block'}>
+                  <CommentSection />
                 </div>
               </motion.div>
             )}
