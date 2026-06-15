@@ -22,14 +22,12 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // DRAG TO ZOOM STATE MANAGERS
   const [zoomIndices, setZoomIndices] = useState<{ start: number; end: number } | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragCurrentX, setDragCurrentX] = useState<number | null>(null);
   const [dragStartIdx, setDragStartIdx] = useState<number | null>(null);
 
-  // Filter history records corresponding to the chosen scope
   const filteredHistory = useMemo(() => {
     if (history.length === 0) return [];
 
@@ -55,7 +53,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     return history.slice(-limit);
   }, [history, scope]);
 
-  // Derived Zoom level subset
   const finalHistory = useMemo(() => {
     if (!zoomIndices) return filteredHistory;
     const start = Math.max(0, Math.min(zoomIndices.start, zoomIndices.end));
@@ -63,7 +60,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     return filteredHistory.slice(start, end + 1);
   }, [filteredHistory, zoomIndices]);
 
-  // Compute peaks inside finalHistory for diagnostic insights and guidelines
   const peaks = useMemo(() => {
     if (finalHistory.length === 0) {
       return { maxTemp: -Infinity, minTemp: Infinity, maxHum: -Infinity, minHum: Infinity, maxTempTime: '', maxHumTime: '' };
@@ -92,13 +88,11 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     return { maxTemp, minTemp, maxHum, maxHumTime, maxTempTime };
   }, [finalHistory]);
 
-  // SVG parameters
   const viewWidth = 900;
   const viewHeight = 280;
   const paddingX = 45;
   const paddingY = 30;
 
-  // Compute boundaries over the active rendered subset (finalHistory)
   const bounds = useMemo(() => {
     if (finalHistory.length === 0) {
       const isF = tempUnit === 'F';
@@ -113,7 +107,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     const minH = Math.min(...humidities);
     const maxH = Math.max(...humidities);
 
-    // Padding bounds for aesthetic breathing room
     const isFahrenheit = tempUnit === 'F';
     const floorLimit = isFahrenheit ? 50 : 10;
     const ceilLimit = isFahrenheit ? 115 : 45;
@@ -124,9 +117,8 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
       minH: Math.max(20, Math.floor(minH - 3)),
       maxH: Math.min(100, Math.ceil(maxH + 3)),
     };
-  }, [finalHistory]);
+  }, [finalHistory, tempUnit]);
 
-  // Map peaks to SVG vertical coordinate spaces
   const peaksSvgCoords = useMemo(() => {
     if (finalHistory.length === 0) return null;
     const { minT, maxT, minH, maxH } = bounds;
@@ -146,7 +138,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     return { yMaxTemp, yMaxHum };
   }, [bounds, peaks, finalHistory]);
 
-  // Map database coordinates into the SVG viewport
   const points = useMemo(() => {
     const listLen = finalHistory.length;
     if (listLen === 0) return { tempPts: [], humPts: [] };
@@ -160,13 +151,11 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     const humPts: { x: number; y: number }[] = [];
 
     finalHistory.forEach((record, index) => {
-      // Calculate Horizontal X placement
       const x =
         listLen === 1
           ? viewWidth / 2
           : paddingX + (index / (listLen - 1)) * (viewWidth - paddingX * 2);
 
-      // Calculate Vertical Y placement (Flipped because SVG 0,0 is top-left)
       const yTemp =
         viewHeight -
         paddingY -
@@ -184,7 +173,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     return { tempPts, humPts };
   }, [finalHistory, bounds]);
 
-  // Construct Cubic-Bezier spline path for natural curves
   const getSplinePath = (pts: { x: number; y: number }[]) => {
     if (pts.length === 0) return '';
     if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
@@ -194,7 +182,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
       const curr = pts[i];
       const next = pts[i + 1];
 
-      // Smooth horizontal handles
       const cp1x = curr.x + (next.x - curr.x) / 3;
       const cp1y = curr.y;
       const cp2x = curr.x + (2 * (next.x - curr.x)) / 3;
@@ -210,7 +197,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
   const tempPath = useMemo(() => getSplinePath(points.tempPts), [points.tempPts]);
   const humPath = useMemo(() => getSplinePath(points.humPts), [points.humPts]);
 
-  // Generates Area fills matching the curves
   const tempAreaPath = useMemo(() => {
     if (points.tempPts.length < 2) return '';
     const firstX = points.tempPts[0].x;
@@ -245,7 +231,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     return closestIdx;
   };
 
-  // Drag and Drop Zoom Core Handlers
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
     if (points.tempPts.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -286,7 +271,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     const cursorX = ((e.clientX - rect.left) / rect.width) * viewWidth;
     const closestIdx = getClosestIndex(cursorX, points.tempPts);
 
-    // If dragged more than 8 pixels, apply zoom slice relative to filteredHistory
     if (Math.abs(dragCurrentX - dragStartX) > 8 && closestIdx !== -1 && closestIdx !== dragStartIdx) {
       const indexA = filteredHistory.indexOf(finalHistory[dragStartIdx]);
       const indexB = filteredHistory.indexOf(finalHistory[closestIdx]);
@@ -305,7 +289,6 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     setDragStartIdx(null);
   };
 
-  // 4. FUNCTIONAL EXPORT PIPELINE (CSV & XML)
   const exportCSV = () => {
     if (finalHistory.length === 0) return;
     let csvContent = 'data:text/csv;charset=utf-8,';
@@ -363,23 +346,23 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
     <div
       id="executive-data-science-platform"
       ref={containerRef}
-      className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] flex flex-col gap-5 w-full overflow-hidden"
+      className="rounded-3xl border border-[var(--border-card)] bg-[var(--bg-card)] backdrop-blur-md p-5 sm:p-6 shadow-[var(--shadow-card)] flex flex-col gap-5 w-full overflow-hidden text-[var(--text-primary)] transition-all duration-300"
     >
-      {/* Platform Title Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+      {/* Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-card)] pb-4">
         <div className="flex items-center gap-2">
-          <AreaChart className="w-5 h-5 text-cyan-400" />
+          <AreaChart className="w-5 h-5 text-[var(--accent-primary)]" />
           <div>
-            <h2 className="text-base font-bold text-white tracking-wide font-sans">
-              Thermodynamic Data Science Ledger
+            <h2 className="text-base font-bold tracking-wide font-sans">
+              {t.chartTitle}
             </h2>
-            <p className="text-[11px] text-slate-400 uppercase font-mono tracking-widest">
-              Bi-variable micro-climate plotting engine
+            <p className="text-[10px] sm:text-[11px] text-[var(--text-secondary)] uppercase font-sans tracking-wider font-extrabold">
+              {language === 'en' ? 'Bivariable organic climate metrics' : 'Metrik Iklim Organik Dwivariabel'}
             </p>
           </div>
         </div>
 
-        {/* Filters and Reset Zoom triggers */}
+        {/* Scope selector */}
         <div className="flex items-center gap-3">
           {zoomIndices && (
             <button
@@ -388,14 +371,14 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
                 setZoomIndices(null);
                 setHoveredIdx(null);
               }}
-              className="px-3 py-1.5 text-[11px] font-bold font-mono tracking-wider rounded border border-rose-500/30 bg-rose-950/35 text-rose-300 hover:bg-rose-500/15 transition-all cursor-pointer shadow-[0_0_8px_rgba(244,63,94,0.15)] flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[11px] font-bold font-sans rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
+              <RotateCcw className="w-3.5 h-3.5" />
               Reset Zoom
             </button>
           )}
 
-          <div id="scope-filters" className="flex items-center gap-1.5 p-1 bg-black/20 border border-white/5 rounded-lg select-none">
+          <div id="scope-filters" className="flex items-center gap-1 p-1 bg-[var(--bg-app)] border border-[var(--border-card)] rounded-xl select-none">
             {(['1H', '6H', '24H', '7D', '30D'] as TimeScope[]).map((sc) => (
               <button
                 key={sc}
@@ -405,10 +388,10 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
                   setZoomIndices(null);
                   setHoveredIdx(null);
                 }}
-                className={`px-3 py-1 text-[11px] font-bold font-mono tracking-wider rounded transition-all duration-200 cursor-pointer ${
+                className={`px-3 py-1 text-[11px] font-bold font-sans rounded-lg transition-all duration-200 cursor-pointer ${
                   scope === sc
-                    ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-[0_0_8px_rgba(6,182,212,0.25)]'
-                    : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                    ? 'bg-[#2b5c2a] dark:bg-[#203c25] text-white shadow-sm'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {sc}
@@ -418,61 +401,61 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
         </div>
       </div>
 
-      {/* Dynamic Diagnostic Peak Summary Panels */}
+      {/* Peak info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-        {/* Peak Temp Summary Card */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl border border-cyan-500/10 bg-cyan-950/15 backdrop-blur-md">
+        {/* Canopy Temp Peak */}
+        <div className="flex items-center justify-between p-3.5 rounded-2xl border border-[var(--border-card)] bg-[var(--bg-app)] transition-all duration-300">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-300">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
               <Thermometer className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Peak Canopy Temp (Scope)</span>
-              <span className="text-sm font-bold text-cyan-300 font-mono">
+              <span className="text-[10px] text-[var(--text-secondary)] font-sans font-bold uppercase tracking-wider block">{t.peakTemp}</span>
+              <span className="text-sm font-bold text-amber-700 dark:text-amber-400 font-sans">
                 {peaks.maxTemp > -Infinity ? `${peaks.maxTemp.toFixed(2)} °${tempUnit}` : 'N/A'}
               </span>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider block">Occurred At</span>
-            <span className="text-[10px] text-slate-300 font-mono font-bold">
+            <span className="text-[9px] text-[var(--text-secondary)] font-sans uppercase tracking-wider block font-bold">Occurred At</span>
+            <span className="text-[10px] text-[var(--text-primary)] font-sans font-extrabold">
               {peaks.maxTempTime || 'N/A'}
             </span>
           </div>
         </div>
 
-        {/* Peak Humid Summary Card */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl border border-emerald-500/10 bg-emerald-950/15 backdrop-blur-md">
+        {/* Canopy Humidity Peak */}
+        <div className="flex items-center justify-between p-3.5 rounded-2xl border border-[var(--border-card)] bg-[var(--bg-app)] transition-all duration-300">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Droplet className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block">Peak Terrarium Humidity (Scope)</span>
-              <span className="text-sm font-bold text-emerald-300 font-mono">
+              <span className="text-[10px] text-[var(--text-secondary)] font-sans font-bold uppercase tracking-wider block">{t.peakHumid}</span>
+              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 font-sans">
                 {peaks.maxHum > -Infinity ? `${peaks.maxHum.toFixed(1)} %` : 'N/A'}
               </span>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider block">Occurred At</span>
-            <span className="text-[10px] text-slate-300 font-mono font-bold">
+            <span className="text-[9px] text-[var(--text-secondary)] font-sans uppercase tracking-wider block font-bold">Occurred At</span>
+            <span className="text-[10px] text-[var(--text-primary)] font-sans font-extrabold">
               {peaks.maxHumTime || 'N/A'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Primary SVG Chart Visualization Row */}
-      <div className="relative w-full overflow-x-auto select-none pointer-events-auto bg-black/10 border border-white/5 p-4 rounded-2xl shadow-inner">
+      {/* SVG Canvas */}
+      <div className="relative w-full overflow-x-auto select-none pointer-events-auto bg-[var(--bg-app)] border border-[var(--border-card)] p-4 rounded-3xl shadow-inner transition-all duration-300">
         {finalHistory.length === 0 ? (
-          <div className="w-full h-72 flex flex-col items-center justify-center text-slate-400 font-mono text-sm">
-            <Layers className="w-8 h-8 text-slate-600 mb-2 animate-bounce" />
+          <div className="w-full h-72 flex flex-col items-center justify-center text-[var(--text-secondary)] font-sans text-sm font-bold">
+            <Layers className="w-8 h-8 text-[var(--text-secondary)] mb-2 animate-bounce" />
             Awaiting Environment Initialization...
           </div>
         ) : (
           <div className="min-w-[800px] w-full">
-            <p className="text-[10px] text-slate-500 font-mono mb-2 text-right tracking-tight">
+            <p className="text-[10px] text-[var(--text-secondary)] font-sans mb-2 text-right tracking-tight font-extrabold uppercase">
               🔍 Drag horizontally over the curves to ZOOM selected range
             </p>
             <svg
@@ -490,63 +473,53 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
               }}
             >
               <defs>
-                {/* Temp gradient */}
+                {/* Custom organic gradient fills */}
                 <linearGradient id="chart-temp-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+                  <stop offset="0%" stopColor="var(--gauge-warning)" stopOpacity="0.12" />
+                  <stop offset="100%" stopColor="var(--gauge-warning)" stopOpacity="0" />
                 </linearGradient>
-                {/* Humid gradient */}
                 <linearGradient id="chart-hum-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                  <stop offset="0%" stopColor="var(--gauge-optimal)" stopOpacity="0.12" />
+                  <stop offset="100%" stopColor="var(--gauge-optimal)" stopOpacity="0" />
                 </linearGradient>
-
-                <filter id="glow-filter-cyan">
-                  <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#22d3ee" floodOpacity="0.6" />
-                </filter>
-                <filter id="glow-filter-emerald">
-                  <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#10b981" floodOpacity="0.6" />
-                </filter>
               </defs>
 
-              {/* Gridlines of custom microscale */}
+              {/* Gridlines */}
               {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
                 const y = paddingY + ratio * (viewHeight - paddingY * 2);
                 const tempVal = bounds.maxT - ratio * (bounds.maxT - bounds.minT);
                 const humVal = bounds.maxH - ratio * (bounds.maxH - bounds.minH);
 
                 return (
-                  <g key={index} className="opacity-40">
+                  <g key={index} className="opacity-70">
                     <line
                       x1={paddingX}
                       y1={y}
                       x2={viewWidth - paddingX}
                       y2={y}
-                      stroke="rgba(255, 255, 255, 0.05)"
+                      stroke="var(--border-card)"
                       strokeWidth="1"
                       strokeDasharray="4,4"
                     />
-                    {/* Left text: Temp */}
                     <text
                       x={paddingX - 8}
-                      y={y + 4}
-                      fill="#22d3ee"
+                      y={y + 3}
+                      fill="var(--text-secondary)"
                       fontSize="9"
-                      fontFamily="monospace"
+                      fontFamily="var(--font-sans)"
                       textAnchor="end"
-                      className="font-semibold fill-cyan-400"
+                      className="font-bold"
                     >
                       {tempVal.toFixed(1)}°
                     </text>
-                    {/* Right text: Humid */}
                     <text
                       x={viewWidth - paddingX + 8}
-                      y={y + 4}
-                      fill="#10b981"
+                      y={y + 3}
+                      fill="var(--text-secondary)"
                       fontSize="9"
-                      fontFamily="monospace"
+                      fontFamily="var(--font-sans)"
                       textAnchor="start"
-                      className="font-semibold fill-emerald-400"
+                      className="font-bold"
                     >
                       {humVal.toFixed(0)}%
                     </text>
@@ -554,85 +527,33 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
                 );
               })}
 
-              {/* Spline Area Gradients under */}
+              {/* Fills */}
               {tempAreaPath && <path d={tempAreaPath} fill="url(#chart-temp-grad)" stroke="none" />}
               {humAreaPath && <path d={humAreaPath} fill="url(#chart-hum-grad)" stroke="none" />}
 
-              {/* Lines segment curves */}
+              {/* Lines */}
               {tempPath && (
                 <path
                   d={tempPath}
                   fill="none"
-                  stroke="#22d3ee"
-                  strokeWidth="2.5"
+                  stroke="var(--gauge-warning)"
+                  strokeWidth="2"
                   strokeLinecap="round"
-                  filter="url(#glow-filter-cyan)"
-                  className="transition-all duration-300 opacity-90"
+                  className="opacity-90"
                 />
               )}
               {humPath && (
                 <path
                   d={humPath}
                   fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2.5"
+                  stroke="var(--gauge-optimal)"
+                  strokeWidth="2"
                   strokeLinecap="round"
-                  filter="url(#glow-filter-emerald)"
-                  className="transition-all duration-300 opacity-90"
+                  className="opacity-90"
                 />
               )}
 
-              {/* Dynamic Guidelines for peak values inside visual window */}
-              {peaksSvgCoords && peaks.maxTemp > -Infinity && !isDragging && (
-                <g className="opacity-40 transition-all duration-300">
-                  <line
-                    x1={paddingX}
-                    y1={peaksSvgCoords.yMaxTemp}
-                    x2={viewWidth - paddingX}
-                    y2={peaksSvgCoords.yMaxTemp}
-                    stroke="rgba(34, 211, 238, 0.5)"
-                    strokeWidth="1.2"
-                    strokeDasharray="2,3"
-                  />
-                  <text
-                    x={paddingX + 6}
-                    y={peaksSvgCoords.yMaxTemp - 5}
-                    fill="#22d3ee"
-                    fontSize="8"
-                    fontFamily="monospace"
-                    className="font-bold fill-cyan-400"
-                  >
-                    {language === 'en' ? 'MAX TEMP' : 'SUHU TERTINGGI'}: {peaks.maxTemp.toFixed(1)}°{tempUnit}
-                  </text>
-                </g>
-              )}
-
-              {peaksSvgCoords && peaks.maxHum > -Infinity && !isDragging && (
-                <g className="opacity-40 transition-all duration-300">
-                  <line
-                    x1={paddingX}
-                    y1={peaksSvgCoords.yMaxHum}
-                    x2={viewWidth - paddingX}
-                    y2={peaksSvgCoords.yMaxHum}
-                    stroke="rgba(16, 185, 129, 0.5)"
-                    strokeWidth="1.2"
-                    strokeDasharray="2,3"
-                  />
-                  <text
-                    x={viewWidth - paddingX - 6}
-                    y={peaksSvgCoords.yMaxHum - 5}
-                    fill="#10b981"
-                    fontSize="8"
-                    fontFamily="monospace"
-                    textAnchor="end"
-                    className="font-bold fill-emerald-400"
-                  >
-                    {language === 'en' ? 'MAX HUMIDITY' : 'KELEMBAPAN TERTINGGI'}: {peaks.maxHum.toFixed(0)}%
-                  </text>
-                </g>
-              )}
-
-              {/* X Timeline label dates */}
+              {/* X Timeline Labels */}
               {finalHistory.map((rec, idx) => {
                 const listLen = finalHistory.length;
                 const showLabel =
@@ -656,11 +577,11 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
                     key={idx}
                     x={x}
                     y={viewHeight - paddingY + 16}
-                    fill="#94a3b8"
+                    fill="var(--text-secondary)"
                     fontSize="9"
-                    fontFamily="monospace"
+                    fontFamily="var(--font-sans)"
                     textAnchor="middle"
-                    className="opacity-70 font-semibold"
+                    className="opacity-80 font-bold"
                   >
                     {rec.displayTime}
                   </text>
@@ -674,47 +595,40 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
                   y={paddingY}
                   width={Math.max(1, Math.abs(dragCurrentX - dragStartX))}
                   height={viewHeight - paddingY * 2}
-                  fill="rgba(6, 182, 212, 0.15)"
-                  stroke="rgba(6, 182, 212, 0.5)"
-                  strokeWidth="1.5"
+                  fill="var(--accent-glow)"
+                  stroke="var(--accent-primary)"
+                  strokeWidth="1.2"
                   pointerEvents="none"
                 />
               )}
 
-              {/* Reactive hover crosshairs and tooltips */}
+              {/* Hover crosshair indicators */}
               {hoveredIdx !== null && points.tempPts[hoveredIdx] && points.humPts[hoveredIdx] && !isDragging && (
                 <g>
-                  {/* Vertical Tracking crosshair line */}
                   <line
                     x1={points.tempPts[hoveredIdx].x}
                     y1={paddingY}
                     x2={points.tempPts[hoveredIdx].x}
                     y2={viewHeight - paddingY}
-                    stroke="rgba(255, 255, 255, 0.2)"
-                    strokeWidth="1.5"
+                    stroke="var(--border-card)"
+                    strokeWidth="1.2"
                     strokeDasharray="3,3"
                   />
-
-                  {/* Temp beacon intersection circle */}
                   <circle
                     cx={points.tempPts[hoveredIdx].x}
                     cy={points.tempPts[hoveredIdx].y}
-                    r="5"
-                    fill="#000"
-                    stroke="#22d3ee"
+                    r="4.5"
+                    fill="var(--bg-card)"
+                    stroke="var(--gauge-warning)"
                     strokeWidth="2"
-                    filter="url(#glow-filter-cyan)"
                   />
-
-                  {/* Humidity beacon intersection circle */}
                   <circle
                     cx={points.humPts[hoveredIdx].x}
                     cy={points.humPts[hoveredIdx].y}
-                    r="5"
-                    fill="#000"
-                    stroke="#10b981"
+                    r="4.5"
+                    fill="var(--bg-card)"
+                    stroke="var(--gauge-optimal)"
                     strokeWidth="2"
-                    filter="url(#glow-filter-emerald)"
                   />
                 </g>
               )}
@@ -723,76 +637,76 @@ export default function ThermodynamicChart({ history, tempUnit, language = 'en' 
         )}
       </div>
 
-      {/* Dynamic Hover Tooltip row + Action details */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-black/10 border border-white/5 p-4 rounded-2xl">
+      {/* Tracker & Export panel */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-[var(--bg-app)] border border-[var(--border-card)] p-4 rounded-2xl">
         <div id="crosshair-tracker-panel" className="flex-grow flex items-center">
           {hoveredIdx !== null && finalHistory[hoveredIdx] ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-slate-400" />
+                <Calendar className="w-4 h-4 text-[var(--text-secondary)]" />
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 uppercase font-mono">{language === 'en' ? 'Time' : 'Waktu'}</span>
-                  <span className="text-xs font-bold text-white font-mono">
+                  <span className="text-[10px] text-[var(--text-secondary)] uppercase font-sans font-bold">{language === 'en' ? 'Time' : 'Waktu'}</span>
+                  <span className="text-xs font-bold font-sans">
                     {finalHistory[hoveredIdx].displayTime || finalHistory[hoveredIdx].timestamp}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <Thermometer className="w-4 h-4 text-cyan-400" />
+                <Thermometer className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 uppercase font-mono">{t.tempTitle}</span>
-                  <span className="text-xs font-bold text-cyan-400 font-mono">
+                  <span className="text-[10px] text-[var(--text-secondary)] uppercase font-sans font-bold">{t.tempTitle}</span>
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 font-sans">
                     {finalHistory[hoveredIdx].temperature.toFixed(2)}°{tempUnit}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <Droplet className="w-4 h-4 text-emerald-400" />
+                <Droplet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 uppercase font-mono">{t.humidTitle}</span>
-                  <span className="text-xs font-bold text-emerald-400 font-mono">
+                  <span className="text-[10px] text-[var(--text-secondary)] uppercase font-sans font-bold">{t.humidTitle}</span>
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-sans">
                     {finalHistory[hoveredIdx].humidity.toFixed(1)}%
                   </span>
                 </div>
               </div>
 
               <div className="flex flex-col">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">{language === 'en' ? 'Actuators' : 'Status Alat'}</span>
-                <span className="text-xs font-semibold text-slate-300 font-mono">
+                <span className="text-[10px] text-[var(--text-secondary)] uppercase font-sans font-bold">{language === 'en' ? 'Actuators' : 'Status Alat'}</span>
+                <span className="text-xs font-semibold text-[var(--text-secondary)] font-sans">
                   {language === 'en' ? 'Fan' : 'Kipas'}: {finalHistory[hoveredIdx].fanSpeed}% | {language === 'en' ? 'Mist' : 'Kabut'}:{' '}
                   {finalHistory[hoveredIdx].isMisting ? (language === 'en' ? 'ACTIVE' : 'AKTIF') : (language === 'en' ? 'OFF' : 'MATI')}
                 </span>
               </div>
             </div>
           ) : (
-            <div className="text-xs text-slate-400 font-mono flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-cyan-500 animate-pulse" />
-              {language === 'en' ? 'Hover over the chart nodes to analyze exact thermodynamic readings.' : 'Arahkan kursor ke grafik untuk melihat detail angka suhu dan kelembapan.'}
+            <div className="text-xs text-[var(--text-secondary)] font-sans flex items-center gap-2 font-medium">
+              <Layers className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+              {t.hoverTip}
             </div>
           )}
         </div>
 
-        {/* 4. EXPORT PIPELINE CONTROL BAR */}
+        {/* Download actions */}
         <div className="flex gap-2 min-w-max">
           <button
             id="btn-export-csv"
             onClick={exportCSV}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-950/20 hover:bg-cyan-500/10 text-cyan-300 text-xs font-bold font-mono tracking-wide transition-all cursor-pointer"
-            title={language === 'en' ? 'Download whole history as CSV' : 'Unduh seluruh data dalam format CSV'}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-[var(--border-card)] bg-[var(--bg-card)] hover:bg-[var(--bg-app)] text-[var(--text-primary)] text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+            title={t.csvTooltip}
           >
             <Download className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Save CSV' : 'Simpan CSV'}
+            {t.saveCsv}
           </button>
           <button
             id="btn-export-xml"
             onClick={exportXML}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-500/10 text-emerald-300 text-xs font-bold font-mono tracking-wide transition-all cursor-pointer"
-            title={language === 'en' ? 'Download whole history as XML' : 'Unduh seluruh data dalam format XML'}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-[var(--border-card)] bg-[var(--bg-card)] hover:bg-[var(--bg-app)] text-[var(--text-primary)] text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+            title={t.xmlTooltip}
           >
             <FileJson className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Save XML' : 'Simpan XML'}
+            {t.saveXml}
           </button>
         </div>
       </div>

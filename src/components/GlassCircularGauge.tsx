@@ -82,11 +82,7 @@ export default function GlassCircularGauge({
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
-  // Gauge coloring rules based on type
-  // Temperature Gradient logic:
-  // Ice Blue (#4FACFE -> #00F2FE): 24°C - 30°C
-  // Crimson Red (#FF416C -> #FF4B2B): > 30°C
-  // Dark Navy Blue (#465A7A -> #1D2A44): < 24°C
+  // Revert circular gauge colors to match the dynamic design in original codebase
   let gradientId = `gauge-gradient-${type}`;
   let haloColorClass = 'from-cyan-500/30 to-blue-500/30';
   let badgeColorClass = 'bg-cyan-500/20 text-cyan-200 border-cyan-500/30';
@@ -101,50 +97,46 @@ export default function GlassCircularGauge({
     if (value > overLimit) {
       gradientStop1 = '#FF416C';
       gradientStop2 = '#FF4B2B';
-      haloColorClass = 'from-red-500/40 to-orange-500/40 animate-pulse';
-      badgeColorClass = 'bg-red-500/20 text-red-200 border-red-500/30';
+      haloColorClass = 'from-red-500/30 to-orange-500/30';
+      badgeColorClass = 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20';
     } else if (value < underLimit) {
       gradientStop1 = '#465A7A';
       gradientStop2 = '#1D2A44';
       haloColorClass = 'from-slate-600/30 to-indigo-900/30';
-      badgeColorClass = 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+      badgeColorClass = 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20';
     } else {
       gradientStop1 = '#4FACFE';
       gradientStop2 = '#00F2FE';
-      haloColorClass = 'from-cyan-500/30 to-blue-500/30';
-      badgeColorClass = 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30';
+      haloColorClass = 'from-cyan-500/20 to-blue-500/20';
+      badgeColorClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
     }
   } else {
     // Humidity color:
-    // Emerald/Mint green (#00B09B -> #96C93D): 70% - 85%
-    // Amber Yellow / Burnt Orange (#F39C12 -> #D35400): < 60%
-    // Normal transitioning: 60% - 70%
     if (value < 60) {
       gradientStop1 = '#F39C12';
       gradientStop2 = '#D35400';
-      haloColorClass = 'from-amber-500/30 to-orange-500/30';
-      badgeColorClass = 'bg-amber-500/20 text-amber-200 border-amber-500/30';
+      haloColorClass = 'from-amber-500/25 to-orange-500/25';
+      badgeColorClass = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
     } else if (value >= 70 && value <= 85) {
       gradientStop1 = '#00B09B';
       gradientStop2 = '#96C93D';
-      haloColorClass = 'from-emerald-500/30 to-lime-500/30';
-      badgeColorClass = 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30';
+      haloColorClass = 'from-emerald-500/20 to-lime-500/20';
+      badgeColorClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
     } else if (value > 85) {
       gradientStop1 = '#7F00FF';
       gradientStop2 = '#E100FF';
-      haloColorClass = 'from-purple-500/40 to-pink-500/40';
-      badgeColorClass = 'bg-purple-500/20 text-purple-200 border-purple-500/30';
+      haloColorClass = 'from-purple-500/20 to-pink-500/20';
+      badgeColorClass = 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20';
     } else {
       // 60% - 70% transition
       gradientStop1 = '#13E0B5';
       gradientStop2 = '#00B09B';
-      haloColorClass = 'from-teal-500/30 to-cyan-500/30';
-      badgeColorClass = 'bg-teal-500/20 text-teal-200 border-teal-500/30';
+      haloColorClass = 'from-teal-500/20 to-cyan-500/20';
+      badgeColorClass = 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20';
     }
   }
 
   // Draw sparkline coordinates
-  // Width = 120, Height = 20
   const width = 120;
   const height = 18;
   const padding = 2;
@@ -169,15 +161,15 @@ export default function GlassCircularGauge({
   return (
     <div
       id={`gauge-card-${type}`}
-      className="relative flex flex-col items-center justify-between p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] min-h-[300px] sm:min-h-[365px] md:min-h-[410px] h-full w-full"
+      className="relative flex flex-col items-center justify-between p-4 sm:p-5 rounded-3xl border border-[var(--border-card)] bg-[var(--bg-card)] shadow-[var(--shadow-card)] text-[var(--text-primary)] transition-all duration-300 min-h-[300px] sm:min-h-[365px] md:min-h-[410px] h-full w-full overflow-hidden"
     >
-      {/* 1. Breathing Halo Backing Glow */}
+      {/* 1. Original Breathing Halo Backing Glow */}
       <motion.div
         id={`gauge-halo-${type}`}
-        className={`absolute top-6 sm:top-10 left-1/2 -translate-x-1/2 w-28 sm:w-44 h-28 sm:h-44 rounded-full bg-gradient-to-tr ${haloColorClass} filter blur-2xl sm:blur-3xl opacity-60 z-0 pointer-events-none`}
+        className={`absolute top-6 sm:top-10 left-1/2 -translate-x-1/2 w-28 sm:w-44 h-28 sm:h-44 rounded-full bg-gradient-to-tr ${haloColorClass} filter blur-2xl sm:blur-3xl opacity-40 z-0 pointer-events-none`}
         animate={{
           scale: [1, 1.15, 1],
-          opacity: [0.5, 0.7, 0.5],
+          opacity: [0.4, 0.6, 0.4],
         }}
         transition={{
           duration: type === 'temperature' ? 4 : 5,
@@ -188,12 +180,12 @@ export default function GlassCircularGauge({
 
       {/* Header Info */}
       <div className="z-10 text-center w-full">
-        <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-slate-400 font-mono truncate max-w-full">
+        <h3 className="text-[10px] sm:text-xs uppercase tracking-widest text-[var(--text-secondary)] font-sans font-bold truncate max-w-full">
           {title}
         </h3>
       </div>
 
-      {/* 2. Interactive Circular Gauge */}
+      {/* 2. Original Interactive Circular Gauge */}
       <div className="relative flex items-center justify-center w-24 h-24 sm:w-36 sm:h-36 z-10 my-0.5 sm:my-1">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 130 130">
           <defs>
@@ -212,7 +204,7 @@ export default function GlassCircularGauge({
             cy="65"
             r={radius}
             fill="transparent"
-            stroke="rgba(255, 255, 255, 0.05)"
+            stroke="rgba(120, 120, 120, 0.08)"
             strokeWidth="8"
           />
 
@@ -235,17 +227,17 @@ export default function GlassCircularGauge({
         {/* 3. Frosted Glass Lens Overlay */}
         <div
           id={`frosted-lens-${type}`}
-          className="absolute inset-[10px] sm:inset-[15px] rounded-full border border-white/10 bg-white/5 backdrop-blur-sm sm:backdrop-blur-md shadow-inner flex flex-col items-center justify-center select-none"
+          className="absolute inset-[10px] sm:inset-[15px] rounded-full border border-zinc-200/50 dark:border-white/15 bg-zinc-50/20 dark:bg-white/5 backdrop-blur-md shadow-inner flex flex-col items-center justify-center select-none"
         >
           <motion.span
             id={`gauge-numeric-value-${type}`}
-            className="text-xl sm:text-3xl font-semibold text-white tracking-tighter tabular-nums font-sans"
+            className="text-xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tighter tabular-nums font-sans"
             animate={{ scale: [0.98, 1, 0.98] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
           >
             {animatedValue.toFixed(1)}
           </motion.span>
-          <span className="text-[10px] sm:text-xs text-slate-300 font-medium tracking-wide">
+          <span className="text-[10px] sm:text-xs text-[var(--text-secondary)] font-semibold tracking-wide">
             {unit}
           </span>
         </div>
@@ -256,7 +248,7 @@ export default function GlassCircularGauge({
         {/* State Badge */}
         <span
           id={`gauge-status-badge-${type}`}
-          className={`text-[8px] sm:text-[10px] font-mono px-1.5 py-0.5 rounded-full border ${badgeColorClass} font-semibold text-center truncate max-w-full`}
+          className={`text-[9px] sm:text-[10px] px-2.5 py-0.5 rounded-full border font-bold text-center truncate max-w-full ${badgeColorClass}`}
         >
           {statusMessage}
         </span>
@@ -289,10 +281,10 @@ export default function GlassCircularGauge({
               />
             </svg>
           ) : (
-            <div className="text-[9px] text-slate-500 font-mono">{language === 'en' ? 'No Trend' : 'Tidak Ada Tren'}</div>
+            <div className="text-[9px] text-[var(--text-secondary)] font-mono">{language === 'en' ? 'No Trend' : 'Tidak Ada Tren'}</div>
           )}
         </div>
-        <div className="text-[8px] sm:text-[9px] text-slate-500 tracking-wider uppercase font-mono truncate max-w-full">
+        <div className="text-[8px] sm:text-[9px] text-[var(--text-secondary)] tracking-wider uppercase font-sans font-bold">
           {language === 'en' ? '24-Hour Trend' : 'Tren Riwayat 24 Jam'}
         </div>
       </div>

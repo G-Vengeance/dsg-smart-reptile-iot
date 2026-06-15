@@ -210,7 +210,7 @@ export default function App() {
     return history;
   }, [history, tempUnit]);
 
-  // Keep Clock updated in custom cyber-banner
+  // Keep Clock updated in custom banner
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -281,7 +281,7 @@ export default function App() {
   };
 
   // 3. CLOSED-LOOP CLOSED PHYSICAL CYCLE SIMULATION TICKER
-  // Trigger intervals every 1.5 seconds to simulate ambient basking, air evaporation, and automated thresholds
+  // Trigger intervals every 2 seconds to simulate ambient basking, air evaporation, and automated thresholds
   useEffect(() => {
     const intervalId = setInterval(() => {
       setClimate((prevClim) => {
@@ -293,36 +293,17 @@ export default function App() {
 
         const generatedLogs: { message: string; type: TelemetryLog['type'] }[] = [];
 
-        // A. Actuator state calculation
-        if (nextIsMisting) {
-          // Spike moisture up +1.2% to +2.0%
-          nextHum += 1.2 + Math.random() * 0.8;
-          // Apply slight evaporative cooling -0.06°C to -0.1°C
-          nextTemp -= 0.06 + Math.random() * 0.04;
-
-          if (nextCountdown > 0) {
-            nextCountdown = Math.max(0, nextCountdown - settingsRef.current.sensorInterval);
-          }
-
-          if (nextCountdown === 0) {
-            nextIsMisting = false;
-            generatedLogs.push({
-              message: 'Penyemprot air otomatis MATI (Selesai menyemprot).',
-              type: 'actuator',
-            });
-          }
-        }
-
+        // Fan speed calculations
         if (nextFanSpeed > 0) {
           const speedFactor = nextFanSpeed / 100;
-          // Force temperature down: -0.2 to -0.35°C
-          nextTemp -= (0.2 + Math.random() * 0.15) * speedFactor;
-          // Evaporator moisture drop and depletion: -0.3% to -0.5%
-          nextHum -= (0.3 + Math.random() * 0.2) * speedFactor;
+          // Force temperature down: -0.03 to -0.05°C per tick
+          nextTemp -= (0.03 + Math.random() * 0.02) * speedFactor;
+          // Evaporator moisture drop: -0.08% to -0.13% per tick
+          nextHum -= (0.08 + Math.random() * 0.05) * speedFactor;
 
           if (prevClim.mode === 'AUTOMATIC') {
             if (fanCountdownRef.current > 0) {
-              fanCountdownRef.current = Math.max(0, fanCountdownRef.current - settingsRef.current.sensorInterval);
+              fanCountdownRef.current = Math.max(0, fanCountdownRef.current - 2);
             }
             if (fanCountdownRef.current === 0) {
               nextFanSpeed = 0;
@@ -337,23 +318,23 @@ export default function App() {
         // B. Passive State - Lamp basking heating
         if (!nextIsMisting && nextFanSpeed === 0) {
           // Crawl temperature up scaled by settings heater intensity ratio
-          const intensityRatio = settingsRef.current.heaterIntensity / 75; // 75 is default intensity
-          nextTemp += (0.08 + Math.random() * 0.08) * intensityRatio;
-          // De-moisturize naturellement: -0.12% to -0.22%
-          nextHum -= 0.12 + Math.random() * 0.1;
+          const intensityRatio = settingsRef.current.heaterIntensity / 75;
+          nextTemp += (0.01 + Math.random() * 0.01) * intensityRatio;
+          // De-moisturize naturellement: -0.02% to -0.04%
+          nextHum -= 0.02 + Math.random() * 0.02;
         }
 
         // Safe boundaries clip
         nextTemp = Math.min(38, Math.max(18, nextTemp));
         nextHum = Math.min(98, Math.max(30, nextHum));
 
-        // C. Automation overrides (AUTOMATIC MODE ENFORCEMENT - ALIGNED WITH ESP8266 FIRMWARE)
+        // C. Automation overrides (AUTOMATIC MODE ENFORCEMENT)
         if (prevClim.mode === 'AUTOMATIC') {
           // Logika untuk FAN: If humidity > humMaxAlarm (90%) and Fan is not running
           if (nextHum > settingsRef.current.humMaxAlarm) {
             if (nextFanSpeed === 0) {
               nextFanSpeed = 100;
-              fanCountdownRef.current = 300; // 5 minutes run time
+              fanCountdownRef.current = 30; // 30 seconds run time
               generatedLogs.push({
                 message: `[OTOMATIS] Kipas otomatis NYALA karena kelembapan tinggi (${nextHum.toFixed(1)}%).`,
                 type: 'warn',
@@ -389,7 +370,6 @@ export default function App() {
 
         // Apply secondary state updates inside safe timeout frame
         setTimeout(() => {
-          // Append logs
           if (generatedLogs.length > 0) {
             setLogs((prevL) => {
               const formatted = generatedLogs.map((g) => ({
@@ -401,21 +381,6 @@ export default function App() {
               return [...prevL, ...formatted].slice(-100);
             });
           }
-
-          // Append history record
-          setHistory((prevH) => {
-            const timeObj = new Date();
-            const record: HistoricalRecord = {
-              timestamp: timeObj.toISOString(),
-              displayTime: timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              temperature: nextTemp,
-              humidity: nextHum,
-              fanSpeed: nextFanSpeed,
-              isMisting: nextIsMisting,
-              activityIndex: Math.floor(Math.random() * 30) + 40,
-            };
-            return [...prevH, record].slice(-300); // cache historical limit
-          });
         }, 0);
 
         return {
@@ -427,9 +392,78 @@ export default function App() {
           mistingCountdown: nextCountdown,
         };
       });
-    }, settings.sensorInterval * 1000);
+    }, 2000);
 
     return () => clearInterval(intervalId);
+  }, []);
+
+  // 3a. Real-time 1-second countdown timer for misting actuator
+  useEffect(() => {
+    if (!climate.isMisting) return;
+
+    const timer = setInterval(() => {
+      setClimate((prev) => {
+        if (!prev.isMisting) return prev;
+        const nextCountdown = prev.mistingCountdown - 1;
+        
+        // Spike moisture up +0.8% to +1.5% per second
+        let nextHum = Math.min(98, prev.humidity + 0.8 + Math.random() * 0.7);
+        // Evaporative cooling -0.04°C to -0.06°C per second
+        let nextTemp = Math.max(18, prev.temperature - 0.04 - Math.random() * 0.02);
+
+        if (nextCountdown <= 0) {
+          setTimeout(() => {
+            addLogEntry(
+              settingsRef.current.language === 'en'
+                ? 'Misting system AUTOMATIC OFF (Finished spraying).'
+                : 'Penyemprot air otomatis MATI (Selesai menyemprot).',
+              'actuator'
+            );
+          }, 0);
+
+          return {
+            ...prev,
+            isMisting: false,
+            mistingCountdown: 0,
+            humidity: nextHum,
+            temperature: nextTemp,
+          };
+        }
+
+        return {
+          ...prev,
+          mistingCountdown: nextCountdown,
+          humidity: nextHum,
+          temperature: nextTemp,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [climate.isMisting]);
+
+  // 3b. Telemetry database logger (runs periodically based on sensorInterval settings)
+  useEffect(() => {
+    const loggerInterval = setInterval(() => {
+      setClimate((curr) => {
+        setHistory((prevH) => {
+          const timeObj = new Date();
+          const record: HistoricalRecord = {
+            timestamp: timeObj.toISOString(),
+            displayTime: timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            temperature: curr.temperature,
+            humidity: curr.humidity,
+            fanSpeed: curr.fanSpeed,
+            isMisting: curr.isMisting,
+            activityIndex: Math.floor(Math.random() * 30) + 40,
+          };
+          return [...prevH, record].slice(-300);
+        });
+        return curr;
+      });
+    }, settings.sensorInterval * 1000);
+
+    return () => clearInterval(loggerInterval);
   }, [settings.sensorInterval]);
 
   // 4. BIOMETRIC ADAPTIVE ACTIVITY INDEX TICKER
@@ -470,7 +504,7 @@ export default function App() {
 
           // Append dynamic biometrics alert
           setTimeout(() => {
-            const indonesanLevel = nextLevel === 'Resting' ? 'Istirahat' : nextLevel === 'Active' ? 'Aktif' : 'Berburu';
+            const indonesanLevel = nextLevel === 'Resting' ? 'Istirahat' : nextLevel === 'Foraging' ? 'Aktif' : 'Berburu';
             const newLog: TelemetryLog = {
               id: Math.random().toString(36).substring(2, 9),
               timestamp: new Date().toLocaleTimeString(),
@@ -594,7 +628,7 @@ export default function App() {
 
     // 4. Initialize bootstrap logs
     setLogs([
-      { id: 'reset1', timestamp: new Date().toLocaleTimeString(), message: settings.language === 'en' ? 'System configuration successfully restored back to factory defaults.' : 'Sistem berhasil di-reset kembali ke pengaturan awal.', type: 'warn' },
+      { id: 'reset1', timestamp: new Date().toLocaleTimeString(), message: settings.language === 'en' ? 'System configuration successfully restored back to defaults.' : 'Sistem berhasil di-reset kembali ke pengaturan awal.', type: 'warn' },
       ...BOOTSTRAP_LOGS
     ]);
 
@@ -615,105 +649,96 @@ export default function App() {
   return (
     <div
       id="main-applet-canvas"
-      className="min-h-screen md:h-screen md:overflow-hidden bg-[#05080c] text-slate-100 flex flex-col md:flex-row relative font-sans select-none"
+      className={`min-h-screen md:h-screen md:overflow-hidden bg-[var(--bg-app)] text-[var(--text-primary)] flex flex-col md:flex-row relative font-sans select-none transition-all duration-500 ${settings.darkMode ? 'dark' : ''}`}
     >
-      {/* Ambient background blur blobs */}
-      <div className={`absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[130px] rounded-full pointer-events-none z-0 transition-opacity duration-700 ${settings.darkMode ? 'opacity-30' : 'opacity-100'}`} />
-      <div className={`absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/8 blur-[130px] rounded-full pointer-events-none z-0 transition-opacity duration-700 ${settings.darkMode ? 'opacity-30' : 'opacity-100'}`} />
+      {/* Soft natural lighting gradients representation of sunlight filtering through jungle canopy */}
+      <div className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] bg-emerald-500/10 dark:bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none z-0" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[55%] h-[55%] bg-amber-500/5 dark:bg-amber-500/2 blur-[120px] rounded-full pointer-events-none z-0" />
 
-      {/* Cyber Grid pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:2.5rem_2.5rem] pointer-events-none z-0" />
-
-      {/* A. STICKY DESKTOP SIDEBAR PANEL (Always on for PC) */}
+      {/* A. STICKY DESKTOP SIDEBAR PANEL */}
       <aside
         id="desktop-sidebar-pane"
-        className="hidden md:flex flex-col w-72 bg-slate-950/40 backdrop-blur-xl border-r border-white/5 p-6 h-screen sticky top-0 z-20 justify-between select-none shrink-0"
+        className="hidden md:flex flex-col w-72 bg-[var(--bg-card)] border-r border-[var(--border-card)] p-6 h-screen sticky top-0 z-20 justify-between select-none shrink-0 transition-all duration-300 shadow-sm"
       >
         <div className="flex flex-col gap-8">
           {/* Terrarium branding area */}
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] flex items-center justify-center">
-              <Heart className="w-5 h-5 text-emerald-400 animate-pulse" />
+            <div className="p-2.5 rounded-2xl border border-[var(--border-card)] bg-[var(--bg-app)] flex items-center justify-center shadow-inner">
+              <Heart className="w-4.5 h-4.5 text-[var(--accent-primary)] animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] tracking-widest text-emerald-400 font-bold uppercase font-mono">
+                <span className="text-[9px] tracking-wider text-[var(--accent-primary)] font-extrabold uppercase font-sans">
                   {t.systemActive}
                 </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)]" />
               </div>
-              <h1 className="text-sm font-bold text-white tracking-tight uppercase font-sans mt-0.5">
+              <h1 className="text-sm font-black tracking-tight uppercase font-sans mt-0.5">
                 {t.titleTerrarium}
               </h1>
             </div>
           </div>
 
-          {/* Navigation link elements with glowing borders */}
-          <nav className="flex flex-col gap-3">
-            <span className="text-[10px] text-zinc-500 font-mono font-bold tracking-widest uppercase mb-1 block">
+          {/* Navigation link elements with organic design */}
+          <nav className="flex flex-col gap-2.5">
+            <span className="text-[10px] text-[var(--text-secondary)] font-sans font-extrabold tracking-wider uppercase mb-1 block">
               {t.menuMain}
             </span>
             
-            <motion.button
+            <button
               id="sidebar-nav-dashboard"
               onClick={() => setActiveTab('dashboard')}
-              whileHover={{ scale: 1.02, x: 2 }}
-              whileTap={{ scale: 0.98 }}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-sans text-xs font-bold transition-all border cursor-pointer ${
+              className={`flex items-center gap-3 px-4.5 py-3.5 rounded-2xl font-sans text-xs font-bold transition-all border cursor-pointer ${
                 activeTab === 'dashboard'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 shadow-[0_4px_16px_rgba(16,185,129,0.1)]'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                  ? 'bg-[var(--accent-primary)]/10 border-[var(--border-card)] text-[var(--accent-primary)] font-extrabold shadow-sm'
+                  : 'bg-transparent border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-card)]'
               }`}
             >
-              <LayoutDashboard className="w-4.5 h-4.5 text-emerald-400" />
+              <LayoutDashboard className="w-4.5 h-4.5 text-[var(--accent-primary)] shrink-0" />
               <span>{t.dashboard}</span>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               id="sidebar-nav-chart"
               onClick={() => setActiveTab('chart')}
-              whileHover={{ scale: 1.02, x: 2 }}
-              whileTap={{ scale: 0.98 }}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-sans text-xs font-bold transition-all border cursor-pointer ${
+              className={`flex items-center gap-3 px-4.5 py-3.5 rounded-2xl font-sans text-xs font-bold transition-all border cursor-pointer ${
                 activeTab === 'chart'
-                  ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 shadow-[0_4px_16px_rgba(6,182,212,0.1)]'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                  ? 'bg-[var(--accent-primary)]/10 border-[var(--border-card)] text-[var(--accent-primary)] font-extrabold shadow-sm'
+                  : 'bg-transparent border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-card)]'
               }`}
             >
-              <TrendingUp className="w-4.5 h-4.5 text-cyan-400" />
+              <TrendingUp className="w-4.5 h-4.5 text-[var(--accent-primary)] shrink-0" />
               <span>{t.analysis}</span>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               id="sidebar-nav-settings"
               onClick={() => setActiveTab('settings')}
-              whileHover={{ scale: 1.02, x: 2 }}
-              whileTap={{ scale: 0.98 }}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-sans text-xs font-bold transition-all border cursor-pointer ${
+              className={`flex items-center gap-3 px-4.5 py-3.5 rounded-2xl font-sans text-xs font-bold transition-all border cursor-pointer ${
                 activeTab === 'settings'
-                  ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300 shadow-[0_4px_16px_rgba(99,102,241,0.1)]'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                  ? 'bg-[var(--accent-primary)]/10 border-[var(--border-card)] text-[var(--accent-primary)] font-extrabold shadow-sm'
+                  : 'bg-transparent border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border-card)]'
               }`}
             >
-              <Settings className="w-4.5 h-4.5 text-indigo-400" />
+              <Settings className="w-4.5 h-4.5 text-[var(--accent-primary)] shrink-0" />
               <span>{t.settings}</span>
-            </motion.button>
+            </button>
           </nav>
         </div>
 
         {/* Read only info block */}
-        <div className="flex flex-col gap-4 border-t border-white/5 pt-5 text-xs font-mono">
-          <div className="text-zinc-500 leading-relaxed font-sans text-[11px]">
+        <div className="flex flex-col gap-4 border-t border-[var(--border-card)] pt-5 text-xs">
+          <div className="text-[var(--text-secondary)] leading-relaxed font-sans text-[11px] font-medium">
             {t.connectedStatus}
           </div>
-          <div className="flex items-center justify-between text-zinc-400 bg-black/20 px-3.5 py-2.5 rounded-xl border border-white/5">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">{t.operatedBy}</span>
-            <span className="font-bold text-[10px] text-slate-300">{t.teamName}</span>
+          <div className="flex items-center justify-between text-[var(--text-secondary)] bg-[var(--bg-app)] px-3.5 py-2.5 rounded-2xl border border-[var(--border-card)]">
+            <span className="text-[9px] text-[var(--text-secondary)] uppercase tracking-wider font-extrabold">{t.operatedBy}</span>
+            <span className="font-extrabold text-[9px] text-[var(--text-primary)] uppercase">{t.teamName}</span>
           </div>
         </div>
       </aside>
 
-      {/* B. MAIN INTERACTIVE CONTENT COLUMN (Takes full remainder space) */}
+      {/* B. MAIN CONTENT COLUMN */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen md:h-screen md:overflow-y-auto scroll-smooth relative pb-24 md:pb-8">
         
         {/* Universal Sticky Top Executive Banner */}
@@ -722,72 +747,72 @@ export default function App() {
           className="relative z-10 w-full px-3.5 sm:px-6 pt-4 sm:pt-6 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 select-none"
         >
           <div className="flex items-center gap-3">
-            {/* Logo visible only on mobile screens where sidebar is hidden */}
-            <div className="md:hidden p-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 flex items-center justify-center">
-              <Heart className="w-4.5 h-4.5 text-emerald-400 animate-pulse" />
+            {/* Mobile Logo */}
+            <div className="md:hidden p-2 rounded-xl border border-[var(--border-card)] bg-[var(--bg-card)] flex items-center justify-center shadow-inner shrink-0">
+              <Heart className="w-4.5 h-4.5 text-[var(--accent-primary)] animate-pulse" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] tracking-widest text-emerald-400 font-bold uppercase font-mono bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">
+                <span className="text-[9px] tracking-wider text-[var(--accent-primary)] font-extrabold uppercase font-sans bg-[var(--bg-card)] px-2.5 py-0.5 rounded border border-[var(--border-card)]">
                   {activeTab === 'dashboard' ? t.primaryTelemetry : activeTab === 'chart' ? t.dataScienceHub : t.hardwarePanel}
                 </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)]" />
               </div>
-              <h2 className="text-xl font-bold text-white tracking-tight font-sans mt-0.5">
-                {activeTab === 'dashboard' && (language === 'en' ? 'Main Control System' : 'Sistem Kendali Utama')}
-                {activeTab === 'chart' && (language === 'en' ? 'Temperature & Humidity Graph' : 'Grafik Suhu & Kelembapan')}
-                {activeTab === 'settings' && (language === 'en' ? 'Automatic Settings' : 'Pengaturan Otomatis')}
+              <h2 className="text-lg font-black tracking-tight font-sans mt-0.5">
+                {activeTab === 'dashboard' && (language === 'en' ? 'Main Control Dashboard' : 'Dasbor Pengendali Utama')}
+                {activeTab === 'chart' && (language === 'en' ? 'Sensor Historical Analytics' : 'Grafik Riwayat Analisis Sensor')}
+                {activeTab === 'settings' && (language === 'en' ? 'Smart Settings & Autopilot' : 'Pengaturan Kandang Pintar')}
               </h2>
             </div>
           </div>
 
-          {/* System parameters Clock & Subject descriptors */}
-          <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-            {/* Aggregate System Health Score */}
+          {/* Banner readout cards */}
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            {/* Health Score Badge */}
             <div
               id="aggregate-system-health-badge"
-              className={`flex items-center gap-2 border px-3 py-1.5 rounded-xl backdrop-blur-sm shadow-md transition-all duration-300 ${
+              className={`flex items-center gap-2 border px-3 py-1.5 rounded-2xl shadow-sm transition-all duration-300 font-bold ${
                 systemHealthScore >= 90
-                  ? 'bg-emerald-950/40 border-emerald-500/25 text-emerald-400'
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
                   : systemHealthScore >= 75
-                  ? 'bg-amber-950/45 border-amber-500/25 text-amber-400 font-bold'
-                  : `bg-red-950/50 border-red-500/30 text-red-400 font-bold ${!settings.muteAlerts ? 'animate-pulse' : ''}`
+                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
+                  : `bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400`
               }`}
             >
-              <Heart className={`w-3.5 h-3.5 ${systemHealthScore < 75 && !settings.muteAlerts ? 'animate-bounce text-red-500' : systemHealthScore < 75 ? 'text-red-500' : systemHealthScore < 90 ? 'text-amber-400' : 'text-emerald-400'}`} />
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">{t.systemHealth}</span>
-              <span className="font-sans font-extrabold text-white text-[13px]">
+              <Heart className="w-3.5 h-3.5 shrink-0 fill-current" />
+              <span className="text-[9px] text-[var(--text-secondary)] uppercase tracking-wider font-sans font-bold">{t.systemHealth}</span>
+              <span className="font-extrabold text-[12px]">
                 {systemHealthScore}%
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              <span className="font-mono font-bold uppercase text-[9px] tracking-wide">
+              <span className="font-sans font-bold uppercase text-[9px] tracking-wide">
                 {systemHealthScore >= 90 ? t.statusNominal : systemHealthScore >= 75 ? t.statusStabilizing : t.statusAnomaly}
               </span>
             </div>
 
-            {/* Subject Tag */}
-            <div className="hidden sm:flex items-center gap-2 bg-slate-900/60 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-sm">
-              <span className="text-slate-400">{t.speciesLabel}</span>
-              <span className="font-bold text-cyan-300 font-sans italic">Tropidolaemus subannulatus</span>
+            {/* Subject Descriptor Badge */}
+            <div className="hidden sm:flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-card)] px-4 py-2 rounded-2xl shadow-sm">
+              <span className="text-[var(--text-secondary)] font-bold font-sans">{t.speciesLabel}</span>
+              <span className="font-bold text-[var(--accent-primary)] italic">Tropidolaemus subannulatus</span>
             </div>
 
-            {/* Sync Clock */}
-            <div className="flex items-center gap-2 bg-slate-900/60 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-sm shadow-md">
-              <Clock className="w-4 h-4 text-cyan-400" />
-              <span id="banner-clock-readout" className="font-mono text-white tracking-widest font-bold">
+            {/* Timer Clock */}
+            <div className="flex items-center gap-2 bg-[var(--bg-card)] border border-[var(--border-card)] px-4 py-2 rounded-2xl shadow-sm">
+              <Clock className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
+              <span id="banner-clock-readout" className="font-sans text-[var(--text-primary)] tracking-wider font-bold">
                 {currentTime || 'Syncing...'}
               </span>
             </div>
 
-            {/* Temperature Unit Toggle Switch */}
-            <div className="flex items-center gap-1.5 bg-slate-900/60 border border-white/10 p-1.5 rounded-xl backdrop-blur-sm shadow-md select-none">
+            {/* Celsius / Fahrenheit Switcher */}
+            <div className="flex items-center gap-1 bg-[var(--bg-card)] border border-[var(--border-card)] p-1 rounded-2xl shadow-sm select-none">
               <button
                 id="toggle-unit-c"
                 onClick={() => setTempUnit('C')}
-                className={`px-3 py-1 text-[11px] font-bold font-mono rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
                   tempUnit === 'C'
-                    ? 'text-white bg-cyan-500/20 shadow-[0_0_8px_rgba(6,182,212,0.35)] border border-cyan-500/35'
-                    : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                    ? 'text-white bg-[#2b5c2a] dark:bg-[#203c25] shadow-sm border border-[var(--border-card)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent'
                 }`}
               >
                 °C
@@ -795,10 +820,10 @@ export default function App() {
               <button
                 id="toggle-unit-f"
                 onClick={() => setTempUnit('F')}
-                className={`px-3 py-1 text-[11px] font-bold font-mono rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
                   tempUnit === 'F'
-                    ? 'text-white bg-cyan-500/20 shadow-[0_0_8px_rgba(6,182,212,0.35)] border border-cyan-500/35'
-                    : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                    ? 'text-white bg-[#2b5c2a] dark:bg-[#203c25] shadow-sm border border-[var(--border-card)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent'
                 }`}
               >
                 °F
@@ -807,8 +832,8 @@ export default function App() {
           </div>
         </header>
 
-        {/* Dynamic transition layout views */}
-        <main className={`relative z-10 w-full px-3.5 sm:px-6 pt-3 sm:pt-4 flex-grow flex flex-col justify-start transition-all duration-700 ${settings.darkMode ? 'brightness-[0.80] saturate-[0.85]' : ''}`}>
+        {/* Dynamic tabs render content container */}
+        <main className={`relative z-10 w-full px-3.5 sm:px-6 pt-3 sm:pt-4 flex-grow flex flex-col justify-start transition-all duration-700`}>
           <AnimatePresence mode="wait">
             
             {/* 1st Tab: Dashboard */}
@@ -816,21 +841,21 @@ export default function App() {
               <motion.div
                 key="dashboard"
                 id="view-tab-dashboard"
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
                 className="flex flex-col gap-6"
               >
-                {/* Mobile Sub-Navigation Segment Tabs (Only visible on screens under md) */}
-                <div id="mobile-sub-navigation-pills" className="md:hidden flex items-center p-1 bg-black/40 border border-white/5 rounded-2xl w-full select-none selection:none">
+                {/* Mobile Sub tabs nav */}
+                <div id="mobile-sub-navigation-pills" className="md:hidden flex items-center p-1 bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl w-full select-none shadow-sm">
                   <button
                     id="sub-tab-control"
                     onClick={() => setMobileSubTab('control')}
-                    className={`flex-1 py-2 text-xs font-bold font-sans rounded-xl transition-all cursor-pointer ${
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       mobileSubTab === 'control'
-                        ? 'bg-emerald-500/10 text-emerald-300 shadow-[0_2px_8px_rgba(16,185,129,0.15)] border border-emerald-500/25'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                        ? 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent'
                     }`}
                   >
                     {t.mobileSubControl}
@@ -838,10 +863,10 @@ export default function App() {
                   <button
                     id="sub-tab-timeline"
                     onClick={() => setMobileSubTab('timeline')}
-                    className={`flex-1 py-2 text-xs font-bold font-sans rounded-xl transition-all cursor-pointer ${
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       mobileSubTab === 'timeline'
-                        ? 'bg-indigo-500/10 text-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.15)] border border-indigo-500/25'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                        ? 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent'
                     }`}
                   >
                     {t.mobileSubTimeline}
@@ -849,17 +874,17 @@ export default function App() {
                   <button
                     id="sub-tab-gallery"
                     onClick={() => setMobileSubTab('gallery')}
-                    className={`flex-1 py-2 text-xs font-bold font-sans rounded-xl transition-all cursor-pointer ${
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       mobileSubTab === 'gallery'
-                        ? 'bg-cyan-500/10 text-cyan-300 shadow-[0_2px_8px_rgba(6,182,212,0.15)] border border-cyan-500/25'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                        ? 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-transparent'
                     }`}
                   >
                     {t.mobileSubGallery}
                   </button>
                 </div>
 
-                {/* Visual Intersect Timeline Track */}
+                {/* Enclosure timeline logs scrub histogram */}
                 <div className={mobileSubTab === 'timeline' ? 'block' : 'hidden md:block'}>
                   <HealthTimeline
                     history={history}
@@ -870,15 +895,15 @@ export default function App() {
                   />
                 </div>
 
-                {/* UPPER BENTO GRID - Highly responsive column spanning with aligned heights */}
+                {/* Primary Bento modules layout */}
                 <div className={mobileSubTab === 'control' ? 'block' : 'hidden md:block'}>
-                  <div id="dashboard-upper-bento" className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6 items-stretch w-full min-h-0">
-                    {/* Col 1: Temperature Gauge */}
+                  <div id="dashboard-upper-bento" className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-stretch w-full min-h-0">
+                    {/* Gauge 1: Temp */}
                     <GlassCircularGauge
                       value={celsiusToUnit(climate.temperature)}
                       min={celsiusToUnit(15)}
                       max={celsiusToUnit(38)}
-                      title={language === 'en' ? 'Enclosure Temp' : 'Suhu Kandang'}
+                      title={language === 'en' ? 'Enclosure Temperature' : 'Suhu Kandang'}
                       unit={tempUnit === 'F' ? '°F' : '°C'}
                       type="temperature"
                       sparklineData={history.slice(-15).map((h) => celsiusToUnit(h.temperature))}
@@ -892,12 +917,12 @@ export default function App() {
                       language={language}
                     />
 
-                    {/* Col 2: Humidity Gauge */}
+                    {/* Gauge 2: Humid */}
                     <GlassCircularGauge
                       value={climate.humidity}
                       min={30}
                       max={98}
-                      title={language === 'en' ? 'Humidity' : 'Kelembapan'}
+                      title={language === 'en' ? 'Humidity Moisture' : 'Kelembapan Kandang'}
                       unit="%"
                       type="humidity"
                       sparklineData={history.slice(-15).map((h) => h.humidity)}
@@ -911,7 +936,7 @@ export default function App() {
                       language={language}
                     />
 
-                    {/* Col 3: Biometrics Modules */}
+                    {/* Biometrics Override Module */}
                     <BiometricsModule
                       biometrics={biometrics}
                       onFeedSnake={handleFeedSnake}
@@ -919,7 +944,7 @@ export default function App() {
                       language={language}
                     />
 
-                    {/* Col 4: Actuators controls cockpit */}
+                    {/* Actuators Control Cockpit */}
                     <ControlPanel
                       climate={climate}
                       onModeToggle={handleModeToggle}
@@ -933,58 +958,65 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* LOWER GRID: Monospace Terminal Event logs logger */}
+                {/* Friendly Activity Logs feed display */}
                 <div className={mobileSubTab === 'timeline' ? 'block' : 'hidden md:block'}>
                   <div
                     id="log-event-viewer-terminal"
-                    className="rounded-2xl sm:rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-3.5 sm:p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6"
+                    className="rounded-3xl border border-[var(--border-card)] bg-[var(--bg-card)] p-4 sm:p-5 shadow-[var(--shadow-card)] flex flex-col md:flex-row md:items-center justify-between gap-5 transition-all duration-300"
                   >
                     <div className="flex-grow flex flex-col gap-2 min-w-0">
-                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <div className="flex items-center justify-between border-b border-[var(--border-card)] pb-2">
                         <div className="flex items-center gap-2">
-                          <Terminal className="w-4 h-4 text-cyan-400" />
-                          <span className="text-xs uppercase tracking-widest text-slate-300 font-mono font-bold">
+                          <Terminal className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
+                          <span className="text-xs uppercase tracking-wider font-sans font-extrabold text-[var(--text-primary)]">
                             {t.eventLogTitle}
                           </span>
                         </div>
                         <button
                           id="btn-clear-terminal-logs"
                           onClick={handleClearTerminalLogs}
-                          className="px-2 py-0.5 text-[9px] sm:text-[10px] font-mono rounded bg-slate-900 border border-white/5 text-slate-400 hover:text-slate-200 cursor-pointer"
+                          className="px-3 py-1 text-[10px] font-sans font-bold rounded-lg border border-[var(--border-card)] bg-[var(--bg-app)] hover:bg-[var(--border-card)] text-[var(--text-primary)] transition-all cursor-pointer shadow-sm active:scale-95"
                         >
                           {t.flushTerminal}
                         </button>
                       </div>
 
+                      {/* Friendly list feed */}
                       <div
                         id="terminal-output-feed"
-                        className="h-24 sm:h-28 overflow-y-auto bg-slate-950/80 rounded-lg p-2.5 sm:p-3 border border-white/5 font-mono text-[10px] sm:text-[11px] leading-relaxed flex flex-col gap-1 shadow-inner scrollbar-thin select-text"
+                        className="h-28 overflow-y-auto bg-[var(--bg-app)] rounded-2xl p-3 border border-[var(--border-card)] font-sans text-xs leading-relaxed flex flex-col gap-1.5 shadow-inner scrollbar-thin select-text transition-all duration-300 text-left"
                       >
                         {[...logs].reverse().map((entry, index) => {
-                          let colorClass = 'text-cyan-400';
-                          if (entry.type === 'error') colorClass = 'text-red-400 font-semibold';
-                          else if (entry.type === 'success') colorClass = 'text-emerald-400';
-                          else if (entry.type === 'warn') colorClass = 'text-amber-400';
-                          else if (entry.type === 'actuator') colorClass = 'text-teal-400';
+                          let colorClass = 'text-[var(--text-primary)]';
+                          let iconColor = 'bg-emerald-500';
+                          if (entry.type === 'error') {
+                            colorClass = 'text-rose-700 dark:text-rose-400 font-bold';
+                            iconColor = 'bg-rose-500';
+                          } else if (entry.type === 'success') {
+                            colorClass = 'text-[var(--accent-primary)] font-bold';
+                            iconColor = 'bg-[var(--accent-primary)]';
+                          } else if (entry.type === 'warn') {
+                            colorClass = 'text-amber-700 dark:text-amber-400 font-bold';
+                            iconColor = 'bg-amber-500';
+                          } else if (entry.type === 'actuator') {
+                            colorClass = 'text-teal-700 dark:text-teal-400 font-semibold';
+                            iconColor = 'bg-teal-500';
+                          }
 
                           return (
                             <motion.div
                               key={`${entry.id}-${index}`}
-                              className="flex gap-2 items-start text-left"
-                              initial={{ opacity: 0, y: -6 }}
+                              className="flex gap-2.5 items-center"
+                              initial={{ opacity: 0, y: -4 }}
                               animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.22, ease: 'easeOut' }}
+                              transition={{ duration: 0.2 }}
                             >
-                              <span className="text-slate-500 min-w-[55px] sm:min-w-[65px] flex-shrink-0 select-none">
+                              <span className="text-[10px] text-[var(--text-secondary)] font-sans font-bold shrink-0 select-none">
                                 [{entry.timestamp}]
                               </span>
-                              <span className="flex items-center gap-1.5 min-w-0">
-                                {(entry.type === 'warn' || entry.type === 'error') && (
-                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    entry.type === 'error' ? 'bg-red-400' : 'bg-amber-400'
-                                  } ${!settings.muteAlerts ? 'animate-ping' : ''}`} />
-                                )}
-                                <span className={colorClass}>{entry.message}</span>
+                              <span className="flex items-center gap-2 min-w-0">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${iconColor}`} />
+                                <span className={`${colorClass} truncate font-medium`}>{entry.message}</span>
                               </span>
                             </motion.div>
                           );
@@ -992,43 +1024,43 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Trigger button for Ledger Popup Database overview */}
-                    <div className="flex-shrink-0 flex flex-col sm:flex-row md:flex-col items-stretch gap-2.5 md:w-[240px]">
-                      <span className="text-[9px] sm:text-[10px] text-zinc-500 uppercase tracking-widest font-mono text-center md:text-left select-none">
+                    {/* Ledger triggers */}
+                    <div className="flex-shrink-0 flex flex-col sm:flex-row md:flex-col items-stretch gap-2 md:w-[220px]">
+                      <span className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-sans font-extrabold text-center md:text-left select-none">
                         {t.systemLedgerTitle}
                       </span>
                       <button
                         id="btn-trigger-ledger-modal"
                         onClick={() => setIsLedgerOpen(true)}
-                        className="py-2.5 sm:py-3 px-4 rounded-xl border border-cyan-500/30 bg-cyan-950/20 hover:bg-cyan-500/20 text-cyan-300 hover:text-white transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2 font-mono text-xs font-bold shadow-[0_0_15px_rgba(6,182,212,0.1)] active:scale-98"
+                        className="py-2.5 sm:py-3 px-4 rounded-xl border border-[var(--border-card)] bg-[var(--bg-card)] hover:bg-[var(--bg-app)] text-[var(--text-primary)] transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 font-sans text-xs font-bold shadow-sm active:scale-95"
                       >
-                        <Database className="w-4 h-4" />
+                        <Database className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
                         {t.analyzeLedgerBtn}
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Heuristic Bio-Observation CCTV Gallery */}
+                {/* CCTV photos stream category display */}
                 <div className={mobileSubTab === 'gallery' ? 'block' : 'hidden md:block'}>
                   <ObservationGallery tempUnit={tempUnit} language={language} />
                 </div>
 
-                {/* Kolom Komentar Pengamatan (Comment Section) */}
+                {/* Guestbook logs section */}
                 <div className={mobileSubTab === 'gallery' ? 'block' : 'hidden md:block'}>
                   <CommentSection />
                 </div>
               </motion.div>
             )}
 
-            {/* 2nd Tab: Analysis Chart */}
+            {/* 2nd Tab: Sensing analytics chart */}
             {activeTab === 'chart' && (
               <motion.div
                 key="chart"
                 id="view-tab-chart"
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
                 className="w-full flex-grow flex flex-col"
               >
@@ -1038,14 +1070,14 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* 3rd Tab: Settings configurations */}
+            {/* 3rd Tab: Smart Settings configurations */}
             {activeTab === 'settings' && (
               <motion.div
                 key="settings"
                 id="view-tab-settings"
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
                 className="w-full flex-grow"
               >
@@ -1067,75 +1099,74 @@ export default function App() {
           </AnimatePresence>
         </main>
 
-        {/* C. MOBILE DOCK SYSTEM (Thumb-friendly tab nav floating on screens under md) */}
+        {/* C. MOBILE DOCK SYSTEM NAVIGATION (Floating bar at the bottom) */}
         <nav
           id="mobile-navigation-dock"
-          className="md:hidden fixed bottom-6 left-6 right-6 h-18 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl z-30 flex items-center justify-around px-4 shadow-[0_12px_40px_rgba(0,0,0,0.6)] "
+          className="md:hidden fixed bottom-6 left-6 right-6 h-16 bg-[var(--bg-card)] backdrop-blur-md border border-[var(--border-card)] rounded-2xl z-30 flex items-center justify-around px-2 shadow-[var(--shadow-card)] transition-all duration-300"
         >
           <button
             id="mobile-dock-dashboard"
             onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center justify-center gap-1.5 w-16 h-14 rounded-2xl transition-all cursor-pointer ${
-              activeTab === 'dashboard' ? 'text-emerald-400 bg-emerald-500/5' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center gap-1 w-16 h-12 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'dashboard' ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/10' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <LayoutDashboard className="w-5.5 h-5.5" />
-            <span className="text-[9px] font-bold tracking-tight font-sans">{t.tabDashboard}</span>
+            <LayoutDashboard className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] font-bold tracking-wide font-sans">{t.tabDashboard}</span>
           </button>
 
           <button
             id="mobile-dock-chart"
             onClick={() => setActiveTab('chart')}
-            className={`flex flex-col items-center justify-center gap-1.5 w-16 h-14 rounded-2xl transition-all cursor-pointer ${
-              activeTab === 'chart' ? 'text-cyan-400 bg-cyan-500/5' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center gap-1 w-16 h-12 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'chart' ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/10' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <TrendingUp className="w-5.5 h-5.5" />
-            <span className="text-[9px] font-bold tracking-tight font-sans">{t.tabAnalysis}</span>
+            <TrendingUp className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] font-bold tracking-wide font-sans">{t.tabAnalysis}</span>
           </button>
 
           <button
             id="mobile-dock-settings"
             onClick={() => setActiveTab('settings')}
-            className={`flex flex-col items-center justify-center gap-1.5 w-16 h-14 rounded-2xl transition-all cursor-pointer ${
-              activeTab === 'settings' ? 'text-indigo-400 bg-indigo-500/5' : 'text-slate-400'
+            className={`flex flex-col items-center justify-center gap-1 w-16 h-12 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'settings' ? 'text-[var(--accent-primary)] bg-[var(--accent-primary)]/10' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <Settings className="w-5.5 h-5.5" />
-            <span className="text-[9px] font-bold tracking-tight font-sans">{t.tabSettings}</span>
+            <Settings className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] font-bold tracking-wide font-sans">{t.tabSettings}</span>
           </button>
         </nav>
 
       </div>
 
-      {/* Expandable glassmorphic ledger modal popup dialog */}
+      {/* Database ledger archive modal dialog */}
       <AnimatePresence>
         {isLedgerOpen && (
           <div
             id="system-ledger-modal-wrapper"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-lg bg-slate-950/60"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/40"
           >
-            {/* Modal Glass backdrop screen click away */}
             <div className="absolute inset-0" onClick={() => setIsLedgerOpen(false)} />
 
             <motion.div
               id="system-ledger-modal-container"
-              className="relative w-full max-w-3xl bg-slate-950/70 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden select-none pointer-events-auto"
-              initial={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-3xl bg-[var(--bg-card)] border border-[var(--border-card)] rounded-3xl p-5 md:p-6 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden select-none pointer-events-auto text-[var(--text-primary)] transition-all duration-300"
+              initial={{ scale: 0.97, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              exit={{ scale: 0.97, opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              {/* Modal header with close */}
-              <div className="flex items-center justify-between border-b border-white/5 pb-4">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-[var(--border-card)] pb-4">
                 <div className="flex items-center gap-2">
-                  <Database className="text-cyan-400 w-5 h-5" />
-                  <div>
-                    <h3 className="text-base font-bold text-white font-sans">
-                      {language === 'en' ? 'Chronological Enclosure Telemetry Ledger' : 'Arsip Riwayat Telemetri Kandang'}
+                  <Database className="text-[var(--accent-primary)] w-5 h-5 shrink-0" />
+                  <div className="text-left">
+                    <h3 className="text-base font-bold tracking-tight font-sans">
+                      {t.systemLedgerTitle}
                     </h3>
-                    <p className="text-xs text-slate-400 font-mono">
-                      {language === 'en' ? 'Secure cached transaction database entries • Clamped to last 100 entries' : 'Arsip transaksi basis data aman terenkripsi • Dibatasi hingga 100 baris terakhir'}
+                    <p className="text-xs text-[var(--text-secondary)] font-sans font-medium mt-0.5">
+                      {language === 'en' ? 'Archived activity log collection • Clamped to last 100 rows' : 'Arsip riwayat deteksi sensor terintegrasi • Dibatasi hingga 100 baris terakhir'}
                     </p>
                   </div>
                 </div>
@@ -1143,64 +1174,64 @@ export default function App() {
                 <button
                   id="close-ledger-modal"
                   onClick={() => setIsLedgerOpen(false)}
-                  className="p-1 rounded-lg border border-white/5 hover:border-white/20 bg-slate-900 text-slate-400 hover:text-white transition-all cursor-pointer"
+                  className="p-1.5 rounded-xl border border-[var(--border-card)] hover:border-[var(--accent-primary)]/20 bg-[var(--bg-app)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer hover:shadow-sm"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 shrink-0" />
                 </button>
               </div>
 
-              {/* Filtering Controls Row */}
-              <div className="flex flex-col sm:flex-row gap-3 py-4 border-b border-white/5 bg-slate-950/20">
+              {/* Filtering Search input */}
+              <div className="flex flex-col sm:flex-row gap-3 py-4 border-b border-[var(--border-card)]">
                 <div className="flex-grow">
                   <input
                     id="ledger-search-input"
                     type="text"
-                    placeholder={language === 'en' ? 'Search ledger entries (e.g., alert, fan, autofocus)...' : 'Cari catatan aktivitas (misal: bahaya, kipas, otomatis)...'}
+                    placeholder={language === 'en' ? 'Search entries (e.g., warning, fan, feed)...' : 'Cari catatan riwayat (misal: peringatan, kipas, makan)...'}
                     value={ledgerSearch}
                     onChange={(e) => setLedgerSearch(e.target.value)}
-                    className="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400 font-mono"
+                    className="w-full bg-[var(--bg-app)] border border-[var(--border-card)] rounded-xl px-4 py-2 text-sm text-[var(--text-primary)] placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-emerald-500/40 font-sans transition-all duration-300"
                   />
                 </div>
                 {ledgerSearch && (
                   <button
                     id="btn-clear-search"
                     onClick={() => setLedgerSearch('')}
-                    className="px-3 bg-slate-800 text-xs font-mono text-slate-400 rounded-lg hover:text-white"
+                    className="px-4 bg-[var(--bg-app)] border border-[var(--border-card)] text-xs font-sans font-bold text-[var(--text-secondary)] rounded-xl hover:text-[var(--text-primary)] cursor-pointer"
                   >
                     {language === 'en' ? 'Clear Filter' : 'Hapus Pencarian'}
                   </button>
                 )}
               </div>
 
-              {/* Scrollable ledger sequence */}
-              <div className="flex-grow overflow-y-auto py-4 flex flex-col gap-2 h-96 scrollbar-thin">
+              {/* Ledger list */}
+              <div className="flex-grow overflow-y-auto py-4 flex flex-col gap-2 h-96 scrollbar-thin text-left">
                 {filteredLedger.length === 0 ? (
-                  <div className="text-center text-slate-500 py-12 font-mono text-sm">
-                    {language === 'en' ? 'No records found matching current query boundaries.' : 'Tidak ada catatan yang cocok dengan pencarian Anda.'}
+                  <div className="text-center text-[var(--text-secondary)] py-12 font-sans text-xs italic font-medium">
+                    {language === 'en' ? 'No records found matching current filter query.' : 'Tidak ada catatan yang cocok dengan pencarian Anda.'}
                   </div>
                 ) : (
                   filteredLedger.map((item, index) => {
-                    let badgeColor = 'bg-slate-900 border-slate-800 text-slate-400';
-                    if (item.type === 'error') badgeColor = 'bg-red-950/40 border-red-500/20 text-red-300';
-                    else if (item.type === 'warn') badgeColor = 'bg-amber-950/40 border-amber-500/20 text-amber-300';
-                    else if (item.type === 'success') badgeColor = 'bg-emerald-950/40 border-emerald-500/20 text-emerald-300';
-                    else if (item.type === 'actuator') badgeColor = 'bg-teal-950/40 border-teal-500/20 text-teal-300';
+                    let badgeColor = 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200/50 dark:border-zinc-700/50 text-zinc-600 dark:text-zinc-400';
+                    if (item.type === 'error') badgeColor = 'bg-rose-100 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/30 text-rose-800 dark:text-rose-300';
+                    else if (item.type === 'warn') badgeColor = 'bg-amber-100 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/30 text-amber-800 dark:text-amber-300';
+                    else if (item.type === 'success') badgeColor = 'bg-emerald-100 dark:bg-emerald-950/30 border-emerald-200/50 dark:border-emerald-800/30 text-emerald-800 dark:text-emerald-300';
+                    else if (item.type === 'actuator') badgeColor = 'bg-teal-100 dark:bg-teal-950/30 border-teal-200/50 dark:border-teal-800/30 text-teal-800 dark:text-teal-350';
 
                     return (
                       <div
                         key={`${item.id}-${index}`}
                         id={`ledger-row-${item.id}`}
-                        className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl border border-white/5 bg-slate-950/60 hover:bg-slate-900/20 transition-all font-mono text-xs select-text"
+                        className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-2xl border border-[var(--border-card)] bg-[var(--bg-app)] hover:bg-[var(--border-card)] transition-all duration-300 text-xs select-text font-sans font-medium"
                       >
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-slate-500 select-none font-bold">
+                        <div className="flex items-center gap-3 shrink-0 select-none">
+                          <span className="text-[var(--text-secondary)] font-sans font-bold">
                             {item.timestamp}
                           </span>
-                          <span className={`px-2 py-0.5 rounded border text-[9px] font-bold select-none ${badgeColor} capitalize w-16 text-center shrink-0`}>
+                          <span className={`px-2 py-0.5 rounded border text-[9px] font-bold uppercase w-16 text-center shrink-0 ${badgeColor}`}>
                             {item.type}
                           </span>
                         </div>
-                        <p className="text-slate-200 font-sans tracking-wide break-words flex-1 min-w-0">
+                        <p className="text-[var(--text-primary)] tracking-wide break-words flex-1 min-w-0 font-sans font-semibold">
                           {item.message}
                         </p>
                       </div>
@@ -1209,13 +1240,13 @@ export default function App() {
                 )}
               </div>
 
-              {/* Modal footer summary information */}
-              <div className="border-t border-white/5 pt-4 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 font-mono gap-4 select-none">
+              {/* Footer summary */}
+              <div className="border-t border-[var(--border-card)] pt-4 flex flex-col sm:flex-row items-center justify-between text-xs text-[var(--text-secondary)] font-sans font-bold gap-4 select-none">
                 <span>
-                  {language === 'en' ? `Showing ${filteredLedger.length} of ${logs.length} logged data transactions` : `Menampilkan ${filteredLedger.length} dari ${logs.length} catatan aktivitas`}
+                  {language === 'en' ? `Showing ${filteredLedger.length} of ${logs.length} logged records` : `Menampilkan ${filteredLedger.length} dari ${logs.length} catatan aktivitas`}
                 </span>
-                <span className="text-[10px] text-slate-500 italic">
-                  {language === 'en' ? 'Press ESC or click backdrop to close ledger session' : 'Tekan ESC atau klik latar belakang untuk menutup arsip'}
+                <span className="text-[10px] italic font-medium">
+                  {language === 'en' ? 'Click backdrop or close button to leave logs session' : 'Klik latar belakang atau tombol tutup untuk menutup arsip'}
                 </span>
               </div>
             </motion.div>
